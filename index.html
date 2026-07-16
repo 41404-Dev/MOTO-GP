@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Moto Finger Runner - 60FPS Ultra Smooth Edition</title>
+    <title>Moto Finger Runner - Perfect Mirror Fixed 60FPS</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
@@ -22,7 +22,7 @@
     </div>
     
     <div id="instructions">
-        ⚡ <strong>60FPS Ultra Smooth Edition:</strong> เอาเงากระตุกออก + ปรับความเร็วกล้อง AI ให้ตอบสนองไวขั้นเทพ!
+        ⚡ <strong>Perfect Mirror Fixed:</strong> แก้ไขปัญหากล้องกลับด้านเรียบร้อยชัวร์ 100%! เลื่อนซ้ายไปซ้าย ขวาไปขวาตามมือจริง + ลื่นๆ 60FPS
     </div>
 
 <script>
@@ -30,7 +30,7 @@ let videoElement;
 let playerX = 200;
 let playerY = 480; 
 let playerSize = 65; 
-let targetX = 200; // 🛠️ เพิ่มตัวแปรเก็บพิกัดเป้าหมายจากกล้องแยกต่างหาก
+let targetX = 200; 
 
 // ตัวแปรสำหรับเก็บรูปภาพ
 let playerImg, sedanImg, pickupImg, truckImg, oilImg, coneImg, ghostImg, trainImg, rampImg;
@@ -84,7 +84,7 @@ function preload() {
 
 function setup() {
     createCanvas(400, 600);
-    frameRate(60); // 🛠️ บังคับตัวเกมให้เรนเดอร์ที่ความเร็วสูงสุด 60fps
+    frameRate(60); 
     videoElement = document.getElementById('webcam');
     
     highScore = int(localStorage.getItem('motoHighScore')) || 0;
@@ -102,7 +102,6 @@ function setup() {
     
     hands.onResults(onHandResults);
 
-    // 🛠️ ปรับความละเอียดกล้องส่งให้ AI เหลือ 160x120 เพื่อลดการโหลดประมวลผลลง 4 เท่า!
     const camera = new Camera(videoElement, {
         onFrame: async () => {
             await hands.send({ image: videoElement });
@@ -117,14 +116,14 @@ function setup() {
     camera.start();
 }
 
-// 🛠️ ปรับแก้: ให้ฟังก์ชันกล้องทำหน้าที่ส่งข้อมูลเป้าหมายพอ ไม่ต้องคำนวณการเคลื่อนไหวในนี้
+// 🛠️ จุดแก้ไขสำคัญ: สลับตำแหน่งเอา width มาไว้ข้างหน้า เพื่อแก้ทิศทางกล้องสะท้อนให้ตรงตามมือจริงร้อยเปอร์เซ็นต์
 function onHandResults(results) {
     if (gameState === 2 && results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
         let hand = results.multiHandLandmarks[0];
         let indexFinger = hand[8]; 
         
-        // บันทึกค่าพิกัดดิบลงตัวแปรเป้าหมาย
-        targetX = map(indexFinger.x, 0.2, 0.8, 0, width, true);
+        // สลับเอา width มาไว้ข้างหน้า จากเดิม (..., 0, width) เป็น (..., width, 0)
+        targetX = map(indexFinger.x, 0.2, 0.8, width, 0, true);
     }
 }
 
@@ -183,7 +182,6 @@ function draw() {
         return;
     }
 
-    // 🛠️ ย้ายการเคลื่อนไหวของรถมา Lerp ในลูป draw() การันตีความสมูทลื่นหัวแตกระดับ 60fps
     if (gameState === 2) {
         playerX = lerp(playerX, targetX, 0.18);
         playerX = constrain(playerX, 65, width - 65);
@@ -343,7 +341,6 @@ function draw() {
                 }
             }
         } else if (obs.type === 'oil') {
-            // 🛠️ ถอดระบบ shadowBlur ออก เปลี่ยนมาใช้การวาดเอฟเฟกต์สีเหลืองทองทับจางๆ แทน
             if (darkness > 0) {
                 push();
                 noStroke();
@@ -381,7 +378,6 @@ function draw() {
             push();
             translate(obs.x + obs.w/2, obs.y + obs.h/2);
             rotate(frameCount * 0.05);
-            // 🛠️ ถอด shadowBlur ของไอเทมดาวโกสท์ออก แทนที่ด้วยวงกลมเรืองแสงเบาๆ
             if (darkness > 0) {
                 noStroke();
                 fill(0, 255, 255, 60);
@@ -426,7 +422,6 @@ function draw() {
         fill(0, 0, 0, darkness);
         rect(0, 0, width, height);
 
-        // 🛠️ ถอด shadowBlur แสงไฟหน้ารถออก วาดเป็นรูปสามเหลี่ยมซ้อนกันเพื่อสร้างมิติความสมูท
         push();
         fill(255, 255, 200, darkness * 0.25);
         noStroke();
@@ -475,7 +470,6 @@ function drawPlayer(speed) {
     translate(playerX, playerY);
     scale(currentScale);
     
-    // 🛠️ ถอด shadowBlur วงแหวนโกสท์ออก ใช้วิธีวาดวงกลมเรืองแสงซ้อนกันแทน
     if (isGhost) {
         push();
         noFill();
