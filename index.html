@@ -69,17 +69,17 @@ let spawnTimer = 0;
 let trainTimer = 0;
 let roadOffset = 0;
 
-// 🛠️ ฟังก์ชัน Preload โหลดรูปภาพเตรียมไว้ก่อนเกมเริ่ม
+// 🛠️ ฟังก์ชัน Preload เวอร์ชันดึงรูปจากหน้าแรกสุดตรงๆ (ไม่ต้องมีโฟลเดอร์ images)
 function preload() {
-    playerImg = loadImage('images/player.png');
-    sedanImg = loadImage('images/sedan.png');
-    pickupImg = loadImage('images/pickup.png');
-    truckImg = loadImage('images/truck.png');
-    oilImg = loadImage('images/oil.png');
-    coneImg = loadImage('images/cone.png');
-    ghostImg = loadImage('images/ghost_item.png');
-    trainImg = loadImage('images/train.png');
-    rampImg = loadImage('images/ramp.png');
+    playerImg = loadImage('player.png');
+    sedanImg = loadImage('sedan.png');
+    pickupImg = loadImage('pickup.png');
+    truckImg = loadImage('truck.png');
+    oilImg = loadImage('oil.png');
+    coneImg = loadImage('cone.png');
+    ghostImg = loadImage('ghost_item.png');
+    trainImg = loadImage('train.png');
+    rampImg = loadImage('ramp.png');
 }
 
 function setup() {
