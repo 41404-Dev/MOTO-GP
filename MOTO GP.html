@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Moto Finger Runner - GitHub Production</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+    <style>
+        body { margin: 0; padding: 0; background: #111; display: flex; justify-content: center; align-items: center; height: 100vh; color: white; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; overflow: hidden; }
+        canvas { border: 4px solid #444; border-radius: 10px; box-shadow: 0 0 30px rgba(0, 255, 255, 0.2); }
+        #video-container { position: absolute; top: 20px; left: 20px; transform: scaleX(-1); opacity: 0.8; pointer-events: none; border-radius: 10px; overflow: hidden; border: 2px solid #0ff; box-shadow: 0 0 10px #0ff; }
+        video { width: 160px; height: 120px; display: block; }
+        #instructions { position: absolute; bottom: 20px; text-align: center; color: #aaa; font-size: 14px; max-width: 600px; }
+    </style>
+</head>
+<body>
+
+    <div id="video-container">
+        <video id="webcam" autoplay playsinline></video>
+    </div>
+    
+    <div id="instructions">
+        ⚡ <strong>GitHub Version:</strong> เชื่อมระบบรูปภาพภายนอกเรียบร้อย | อย่าลืมสร้างโฟลเดอร์ images/ และใส่รูปให้ตรงชื่อนะเพื่อน!
+    </div>
+
+<script>
+let videoElement;
+let playerX = 200;
+let playerY = 500;
+let playerSize = 40;
+
+// 🛠️ ประกาศตัวแปรสำหรับเก็บรูปภาพ
+let playerImg, sedanImg, pickupImg, truckImg, oilImg, coneImg, ghostImg, trainImg, rampImg;
+
+// ระบบกระโดด
+let jumpHeight = 0;
+let jumpVelocity = 0;
+let gravity = 0.6;
+let isJumping = false;
+
+// ตัวแปรเกม
+let score = 0;
+let highScore = 0;
+let showNewRecord = false;
+let baseSpeed = 5;
+let gameState = 0;
+let cameraReady = false;
+let playFrames = 0; 
+
+// อุปสรรคและไอเทม
+let obstacles = [];
+let train = null;
+let ramp = null;
+let particles = [];
+let floatingTexts = [];
+
+// เอฟเฟกต์และโหมดพิเศษ
+let isGhost = false;
+let ghostTimer = 0;
+let isSlippery = false;
+let slipperyTimer = 0;
+let speedPenalty = 0;
+let penaltyTimer = 0;
+let darkness = 0; 
+
+let spawnTimer = 0;
+let trainTimer = 0;
+let roadOffset = 0;
+
+// 🛠️ ฟังก์ชัน Preload โหลดรูปภาพเตรียมไว้ก่อนเกมเริ่ม
+function preload() {
+    playerImg = loadImage('images/player.png');
+    sedanImg = loadImage('images/sedan.png');
+    pickupImg = loadImage('images/pickup.png');
+    truckImg = loadImage('images/truck.png');
+    oilImg = loadImage('images/oil.png');
+    coneImg = loadImage('images/cone.png');
+    ghostImg = loadImage('images/ghost_item.png');
+    trainImg = loadImage('images/train.png');
+    rampImg = loadImage('images/ramp.png');
+}
+
+function setup() {
+    createCanvas(400, 600);
+    videoElement = document.getElementById('webcam');
+    
+    highScore = int(localStorage.getItem('motoHighScore')) || 0;
+
+    const hands = new Hands({
+        locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+    });
+    
+    hands.setOptions({
+        maxNumHands: 1,
+        modelComplexity: 1,
+        minDetectionConfidence: 0.5,
+        minTrackingConfidence: 0.5
+    });
+    
+    hands.onResults(onHandResults);
+
+    const camera = new Camera(videoElement, {
+        onFrame: async () => {
+            await hands.send({ image: videoElement });
+            if (!cameraReady) {
+                cameraReady = true;
+                gameState = 1;
+            }
+        },
+        width: 320,
+        height: 240
+    });
+    camera.start();
+}
+
+function onHandResults(results) {
+    if (gameState === 2 && results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+        let hand = results.multiHandLandmarks[0];
+        let indexFinger = hand[8]; 
+        
+        let targetX = map(indexFinger.x, 0.8, 0.2, 0, width, true);
+        playerX = lerp(playerX, targetX, 0.15);
+        playerX = constrain(playerX, 60, width - 60);
+    }
+}
+
+function resetGame() {
+    obstacles = [];
+    train = null;
+    ramp = null;
+    particles = [];
+    floatingTexts = [];
+    score = 0;
+    playFrames = 0; 
+    playerX = width / 2;
+    jumpHeight = 0;
+    jumpVelocity = 0;
+    isJumping = false;
+    spawnTimer = 0;
+    trainTimer = 0;
+    
+    showNewRecord = false;
+    isGhost = false;
+    ghostTimer = 0;
+    isSlippery = false;
+    slipperyTimer = 0;
+    speedPenalty = 0;
+    penaltyTimer = 0;
+    
+    gameState = 2;
+}
+
+function mousePressed() {
+    if (gameState === 1 || gameState === 3) {
+        resetGame();
+    }
+}
+
+function draw() {
+    background(30, 150, 50);
+    
+    fill(50);
+    noStroke();
+    rect(40, 0, width - 80, height);
+    
+    fill(200);
+    rect(40, 0, 5, height);
+    rect(width - 45, 0, 5, height);
+
+    if (gameState === 0) {
+        drawMessage("กำลังเชื่อมต่อกล้อง...", "กรุณารอสักครู่");
+        return;
+    } else if (gameState === 1) {
+        drawMessage("MOTO FINGER RUNNER", "คลิกที่หน้าจอเพื่อเริ่มเกม!");
+        return;
+    } else if (gameState === 3) {
+        drawMessage("GAME OVER", "คะแนนของคุณ: " + score + "\nคลิกที่หน้าจอเพื่อเล่นใหม่");
+        return;
+    }
+
+    let currentSpeed = baseSpeed + (score * 0.002) - speedPenalty;
+    if (currentSpeed < 3) currentSpeed = 3; 
+
+    roadOffset += currentSpeed;
+    if (roadOffset > 40) roadOffset = 0;
+    fill(255);
+    for (let i = -40; i < height; i += 40) {
+        rect(width / 2 - 2, i + roadOffset, 4, 20);
+    }
+
+    if (score > highScore) {
+        if (highScore > 0 && !showNewRecord) {
+            showNewRecord = true;
+        }
+        highScore = score;
+        localStorage.setItem('motoHighScore', highScore);
+    }
+
+    if (isSlippery) {
+        slipperyTimer--;
+        playerX += sin(frameCount * 0.8) * 7; 
+        if (frameCount % 3 === 0) {
+            particles.push({ x: playerX, y: playerY + 15, alpha: 200, colorStr: "rgba(238, 198, 91, " }); 
+        }
+        if (slipperyTimer <= 0) isSlippery = false;
+    }
+
+    if (isGhost) {
+        ghostTimer--;
+        if (ghostTimer <= 0) isGhost = false;
+    }
+
+    if (speedPenalty > 0) {
+        penaltyTimer--;
+        if (penaltyTimer <= 0) speedPenalty = 0;
+    }
+
+    if (isJumping) {
+        jumpHeight += jumpVelocity;
+        jumpVelocity -= gravity;
+        
+        if (jumpHeight <= 0) {
+            jumpHeight = 0;
+            isJumping = false;
+        }
+    }
+
+    let trainSpawnThreshold = 400 - (currentSpeed * 3);
+    let timeBeforeTrainToClear = 130; 
+    let isCloseToTrain = (trainTimer > trainSpawnThreshold - timeBeforeTrainToClear);
+
+    spawnTimer++;
+    let spawnDelay = 70 - (currentSpeed * 1.5);
+    if (spawnDelay < 32) spawnDelay = 32;
+
+    if (spawnTimer > spawnDelay && !train && !ramp && !isCloseToTrain) { 
+        let rand = random(100);
+        if (rand < 60) {
+            let types = ['sedan', 'pickup', 'truck'];
+            let type = random(types);
+            let w = type === 'truck' ? 45 : 35;
+            let h = type === 'truck' ? 80 : 60;
+            
+            obstacles.push({
+                x: random(60, width - 60 - w),
+                y: -h, w: w, h: h, speed: currentSpeed * 0.8, type: type
+            });
+        } else if (rand < 78) {
+            obstacles.push({
+                x: random(60, width - 110),
+                y: -40, w: 60, h: 30, speed: currentSpeed, type: 'oil'
+            });
+        } else if (rand < 97) {
+            obstacles.push({
+                x: random(60, width - 85),
+                y: -30, w: 25, h: 30, speed: currentSpeed, type: 'cone'
+            });
+        } else {
+            if (!isGhost) { 
+                obstacles.push({
+                    x: random(80, width - 110),
+                    y: -30, w: 30, h: 30, speed: currentSpeed, type: 'ghost_item'
+                });
+            } else {
+                obstacles.push({
+                    x: random(60, width - 85),
+                    y: -30, w: 25, h: 30, speed: currentSpeed, type: 'cone'
+                });
+            }
+        }
+        spawnTimer = 0;
+    }
+
+    trainTimer++;
+    if (trainTimer > trainSpawnThreshold && !train && !ramp) {
+        let trackY = -150; 
+        ramp = { x: random(80, width - 140), y: trackY + 80, w: 60, h: 60 }; 
+        train = { x: 45, y: trackY, w: width - 90, h: 50 };
+        trainTimer = 0;
+    }
+
+    // 🛠️ วาดรูปรถไฟจากรูปภาพแทนรูปทรง
+    if (train) {
+        train.y += currentSpeed; 
+        
+        fill(40);
+        rect(40, train.y + 10, width - 80, 25); 
+        fill(100);
+        rect(40, train.y + 12, width - 80, 4); 
+        rect(40, train.y + 28, width - 80, 4); 
+
+        // แสดงภาพรถไฟ
+        image(trainImg, train.x, train.y, train.w, train.h);
+
+        if (playerX > train.x && playerX < train.x + train.w &&
+            playerY > train.y && playerY < train.y + train.h) {
+            if (jumpHeight < 40 && !isGhost) gameState = 3; 
+        }
+        if (train.y > height + 100) train = null; 
+    }
+
+    // 🛠️ วาดรูปทางเหินจากรูปภาพแทนรูปทรง
+    if (ramp) {
+        ramp.y += currentSpeed;
+        
+        // แสดงภาพทางเหิน
+        image(rampImg, ramp.x, ramp.y, ramp.w, ramp.h);
+
+        if (playerX > ramp.x - 10 && playerX < ramp.x + ramp.w + 10 &&
+            playerY > ramp.y && playerY < ramp.y + ramp.h && !isJumping) {
+            isJumping = true;
+            jumpVelocity = 12;
+        }
+        if (ramp.y > height) ramp = null;
+    }
+
+    for (let i = obstacles.length - 1; i >= 0; i--) {
+        let obs = obstacles[i];
+        obs.y += currentSpeed;
+        
+        // 🛠️ เปลี่ยนการวาดอุปสรรคทุกชนิดให้ดึงมาจากไฟล์รูปภาพ PNG
+        if (obs.type === 'sedan' || obs.type === 'pickup' || obs.type === 'truck') {
+            let imgToDraw = sedanImg;
+            if(obs.type === 'pickup') imgToDraw = pickupImg;
+            if(obs.type === 'truck') imgToDraw = truckImg;
+            
+            // วาดรูปยานพาหนะ
+            image(imgToDraw, obs.x, obs.y, obs.w, obs.h);
+            
+            if (jumpHeight < 20 && !isGhost) { 
+                if (playerX + playerSize/3 > obs.x && playerX - playerSize/3 < obs.x + obs.w &&
+                    playerY + playerSize/3 > obs.y && playerY - playerSize/3 < obs.y + obs.h) {
+                    gameState = 3;
+                }
+            }
+        } else if (obs.type === 'oil') {
+            push();
+            if (darkness > 0) {
+                drawingContext.shadowBlur = 15;
+                drawingContext.shadowColor = 'rgba(245, 212, 114, 0.9)'; 
+            }
+            // วาดรูปบ่อน้ำมันทองคำ
+            image(oilImg, obs.x, obs.y, obs.w, obs.h);
+            pop();
+
+            if (jumpHeight < 10 && !isGhost) {
+                if (playerX > obs.x && playerX < obs.x + obs.w &&
+                    playerY > obs.y && playerY < obs.y + obs.h) {
+                    if (!isSlippery) {
+                        isSlippery = true;
+                        slipperyTimer = 60; 
+                        floatingTexts.push({ x: playerX, y: playerY - 30, text: "SLIPPERY!", r: 245, g: 212, b: 114, size: 18, timer: 45 });
+                    }
+                }
+            }
+        } else if (obs.type === 'cone') {
+            // วาดรูปกรวยจราจร
+            image(coneImg, obs.x, obs.y, obs.w, obs.h);
+
+            if (jumpHeight < 20 && !isGhost) {
+                if (playerX + playerSize/3 > obs.x && playerX - playerSize/3 < obs.x + obs.w &&
+                    playerY + playerSize/3 > obs.y && playerY - playerSize/3 < obs.y + obs.h) {
+                    score = max(0, score - 50); 
+                    speedPenalty = 3; 
+                    penaltyTimer = 90;
+                    floatingTexts.push({ x: playerX, y: playerY - 30, text: "-50 คะแนน", r: 255, g: 50, b: 50, size: 18, timer: 45 });
+                    obstacles.splice(i, 1);
+                    continue;
+                }
+            }
+        } else if (obs.type === 'ghost_item') {
+            push();
+            translate(obs.x + obs.w/2, obs.y + obs.h/2);
+            rotate(frameCount * 0.05);
+            if (darkness > 0) {
+                drawingContext.shadowBlur = 15;
+                drawingContext.shadowColor = 'rgba(0, 255, 255, 0.8)';
+            }
+            imageMode(CENTER);
+            // วาดรูปไอเทมดาวโกสท์แบบหมุนได้
+            image(ghostImg, 0, 0, obs.w, obs.h);
+            pop();
+
+            if (playerX + playerSize/2 > obs.x && playerX - playerSize/2 < obs.x + obs.w &&
+                playerY + playerSize/2 > obs.y && playerY - playerSize/2 < obs.y + obs.h) {
+                isGhost = true;
+                ghostTimer = 150; 
+                floatingTexts.push({ x: playerX, y: playerY - 30, text: "GHOST MODE!", r: 0, g: 255, b: 255, size: 20, timer: 60 });
+                obstacles.splice(i, 1);
+                continue;
+            }
+        }
+
+        if (obs.y > height) {
+            obstacles.splice(i, 1);
+            if (obs.type !== 'ghost_item' && obs.type !== 'oil') {
+                score += 10;
+            }
+        }
+    }
+
+    drawPlayer(currentSpeed);
+
+    let cycle = playFrames % 3000; 
+    if (cycle < 1200) {
+        darkness = 0; 
+    } else if (cycle >= 1200 && cycle < 1600) {
+        darkness = map(cycle, 1200, 1600, 0, 110); 
+    } else if (cycle >= 1600 && cycle < 2400) {
+        darkness = 110; 
+    } else {
+        darkness = map(cycle, 2400, 3000, 110, 0); 
+    }
+
+    if (darkness > 0) {
+        fill(0, 0, 0, darkness);
+        rect(0, 0, width, height);
+
+        push();
+        drawingContext.shadowBlur = 20;
+        drawingContext.shadowColor = 'rgba(255, 255, 200, 0.5)';
+        fill(255, 255, 200, darkness * 0.4);
+        noStroke();
+        triangle(playerX, playerY - 10, playerX - 70, playerY - 220, playerX + 70, playerY - 220);
+        pop();
+
+        for (let obs of obstacles) {
+            if (obs.type === 'sedan' || obs.type === 'pickup' || obs.type === 'truck') {
+                push();
+                fill(255, 255, 200, darkness * 0.35);
+                noStroke();
+                triangle(obs.x + obs.w/2, obs.y + obs.h, obs.x - 30, obs.y + obs.h + 150, obs.x + obs.w + 30, obs.y + obs.h + 150);
+                pop();
+            }
+        }
+    }
+
+    drawFloatingTexts();
+
+    fill(0, 0, 0, 180);
+    rect(0, 0, width, 40);
+    fill(255);
+    textSize(18);
+    textAlign(LEFT);
+    text("SCORE: " + score, 15, 26);
+    
+    if (showNewRecord && frameCount % 30 < 15) {
+        fill(255, 215, 0);
+        textAlign(RIGHT);
+        text("🏆 NEW RECORD!", width - 15, 26);
+    }
+
+    if (gameState === 2) {
+        playFrames++;
+        if (frameCount % 3 === 0) {
+            score++;
+        }
+    }
+}
+
+// 🛠️ ฟังก์ชันวาดตัวผู้เล่น (รถมอเตอร์ไซค์) จากรูปภาพภายนอก
+function drawPlayer(speed) {
+    push();
+    let currentScale = 1 + (jumpHeight * 0.005);
+    translate(playerX, playerY);
+    scale(currentScale);
+    
+    if (isGhost) {
+        push();
+        noFill();
+        stroke(0, 255, 255, 150 + sin(frameCount * 0.2) * 80);
+        strokeWeight(3);
+        drawingContext.shadowBlur = 15;
+        drawingContext.shadowColor = 'rgba(0, 255, 255, 0.8)';
+        ellipse(0, 0, playerSize * 1.4, playerSize * 1.4);
+        pop();
+    }
+
+    if (jumpHeight > 0) {
+        fill(0, 0, 0, 80);
+        ellipse(10, jumpHeight, playerSize, playerSize/1.5);
+    } else {
+        if (frameCount % 3 === 0) {
+            let pCol = isGhost ? "rgba(0, 255, 255, " : "rgba(200, 200, 200, ";
+            particles.push({x: playerX, y: playerY + 20, alpha: 255, colorStr: pCol});
+        }
+    }
+    
+    let playerAlpha = isGhost ? 110 : 255; 
+
+    // ใช้คำสั่ง tint เพื่อกำหนดความโปร่งแสงของรูปภาพตอนเป็น Ghost Mode
+    tint(255, playerAlpha);
+    imageMode(CENTER);
+    
+    // วาดภาพรถมอเตอร์ไซค์ของผู้เล่น (ขนาดกว้าง 24 สูง 48 สมดุลกับตัวรถเดิม)
+    image(playerImg, 0, 0, 24, 48); 
+    pop();
+
+    for (let i = particles.length - 1; i >= 0; i--) {
+        let p = particles[i];
+        p.y += speed * 0.5;
+        p.alpha -= 8;
+        noStroke();
+        fill(p.colorStr + (p.alpha/255) + ")");
+        ellipse(p.x + random(-5, 5), p.y, 8, 8);
+        if (p.alpha <= 0) particles.splice(i, 1);
+    }
+}
+
+function drawFloatingTexts() {
+    for (let i = floatingTexts.length - 1; i >= 0; i--) {
+        let ft = floatingTexts[i];
+        ft.y -= 1.5;
+        ft.timer--;
+        fill(ft.r, ft.g, ft.b, map(ft.timer, 0, 45, 0, 255));
+        textSize(ft.size);
+        textAlign(CENTER);
+        text(ft.text, ft.x, ft.y);
+        if (ft.timer <= 0) {
+            floatingTexts.splice(i, 1);
+        }
+    }
+}
+
+function drawMessage(title, subtitle) {
+    fill(0, 0, 0, 200);
+    rect(0, 0, width, height);
+    fill(0, 255, 255);
+    textSize(32);
+    textAlign(CENTER);
+    text(title, width/2, height/2 - 40);
+    fill(255);
+    textSize(16);
+    text(subtitle, width/2, height/2 + 5);
+
+    if (gameState === 3) {
+        fill(255, 215, 0);
+        textSize(20);
+        text("🏆 HIGH SCORE: " + highScore, width/2, height/2 + 65);
+    }
+}
+</script>
+</body>
+</html>
