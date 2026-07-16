@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Moto Finger Runner - Mirror Fixed Edition</title>
+    <title>Moto Finger Runner - Mega Giant Edition</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
@@ -22,14 +22,14 @@
     </div>
     
     <div id="instructions">
-        ⚡ <strong>Mirror Fixed Edition:</strong> แก้ไขปัญหากล้องกลับด้านแล้ว! เลื่อนซ้ายไปซ้าย ขวาไปขวาตามมือจริง
+        ⚡ <strong>Mega Giant Edition:</strong> ไอคอนใหญ่สะใจเต็มพิกัด + ระบบควบคุมตามมือจริงไม่มีสวนทาง!
     </div>
 
 <script>
 let videoElement;
 let playerX = 200;
-let playerY = 500;
-let playerSize = 50; 
+let playerY = 480; // ขยับผู้เล่นขึ้นมานิดนึงเพื่อรองรับความยาวของรถ
+let playerSize = 65; // ปรับขนาดฐาน Hitbox ให้กว้างขึ้นตามตัวรถ
 
 // ตัวแปรสำหรับเก็บรูปภาพ
 let playerImg, sedanImg, pickupImg, truckImg, oilImg, coneImg, ghostImg, trainImg, rampImg;
@@ -69,7 +69,7 @@ let spawnTimer = 0;
 let trainTimer = 0;
 let roadOffset = 0;
 
-// โหลดรูปภาพจากหน้าแรกสุดตรงๆ ตามโครงสร้าง GitHub ของมึง
+// โหลดรูปภาพจากหน้าแรกสุด (Root Path)
 function preload() {
     playerImg = loadImage('player.png');
     sedanImg = loadImage('sedan.png');
@@ -115,15 +115,16 @@ function setup() {
     camera.start();
 }
 
-// 🛠️ จุดที่แก้ไข: สลับค่าการ Map จากกล้อง ป้องกันปัญหามือสวนทางกับรถ
+// ระบบกล้องทิศทางเดียวกับมือจริง (Mirror Fixed)
 function onHandResults(results) {
     if (gameState === 2 && results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
         let hand = results.multiHandLandmarks[0];
         let indexFinger = hand[8]; 
         
-        // สลับช่วงรับค่าจาก (0.8, 0.2) เป็น (0.2, 0.8) เพื่อแก้ระบบเลี้ยวสวนทาง
         let targetX = map(indexFinger.x, 0.2, 0.8, 0, width, true);
         playerX = lerp(playerX, targetX, 0.15);
+        
+        // ล็อคขอบเขตไม่ให้รถใหญ่เกินถนน (ขอบถนนซ้าย 40 ขวา 360, รถมอเตอร์ไซค์กว้าง 50)
         playerX = constrain(playerX, 65, width - 65);
     }
 }
@@ -204,7 +205,7 @@ function draw() {
         slipperyTimer--;
         playerX += sin(frameCount * 0.8) * 7; 
         if (frameCount % 3 === 0) {
-            particles.push({ x: playerX, y: playerY + 20, alpha: 200, colorStr: "rgba(238, 198, 91, " }); 
+            particles.push({ x: playerX, y: playerY + 30, alpha: 200, colorStr: "rgba(238, 198, 91, " }); 
         }
         if (slipperyTimer <= 0) isSlippery = false;
     }
@@ -234,8 +235,8 @@ function draw() {
     let isCloseToTrain = (trainTimer > trainSpawnThreshold - timeBeforeTrainToClear);
 
     spawnTimer++;
-    let spawnDelay = 70 - (currentSpeed * 1.5);
-    if (spawnDelay < 32) spawnDelay = 32;
+    let spawnDelay = 75 - (currentSpeed * 1.5);
+    if (spawnDelay < 35) spawnDelay = 35;
 
     if (spawnTimer > spawnDelay && !train && !ramp && !isCloseToTrain) { 
         let rand = random(100);
@@ -243,33 +244,41 @@ function draw() {
             let types = ['sedan', 'pickup', 'truck'];
             let type = random(types);
             
-            let w = type === 'truck' ? 55 : 45; 
-            let h = type === 'truck' ? 100 : 75; 
+            // 🛠️ ขยายขนาดรถอุปสรรคให้เบิ้มจุใจ (เก๋ง/กระบะ: 58x95 | รถบรรทุก: 70x130)
+            let w = type === 'truck' ? 70 : 58; 
+            let h = type === 'truck' ? 130 : 95; 
             
             obstacles.push({
-                x: random(60, width - 60 - w),
+                x: random(45, width - 45 - w),
                 y: -h, w: w, h: h, speed: currentSpeed * 0.8, type: type
             });
         } else if (rand < 78) {
+            // 🛠️ ขยายขนาดบ่อน้ำมันทองคำ (90 x 55)
+            let w = 90, h = 55;
             obstacles.push({
-                x: random(60, width - 130),
-                y: -45, w: 75, h: 45, speed: currentSpeed, type: 'oil'
+                x: random(45, width - 45 - w),
+                y: -h, w: w, h: h, speed: currentSpeed, type: 'oil'
             });
         } else if (rand < 97) {
+            // 🛠️ ขยายขนาดกรวยจราจร (45 x 55)
+            let w = 45, h = 55;
             obstacles.push({
-                x: random(60, width - 95),
-                y: -42, w: 35, h: 42, speed: currentSpeed, type: 'cone'
+                x: random(45, width - 45 - w),
+                y: -h, w: w, h: h, speed: currentSpeed, type: 'cone'
             });
         } else {
             if (!isGhost) { 
+                // 🛠️ ขยายขนาดไอเทมดาวโกสท์ (55 x 55)
+                let w = 55, h = 55;
                 obstacles.push({
-                    x: random(80, width - 110),
-                    y: -42, w: 42, h: 42, speed: currentSpeed, type: 'ghost_item'
+                    x: random(50, width - 50 - w),
+                    y: -h, w: w, h: h, speed: currentSpeed, type: 'ghost_item'
                 });
             } else {
+                let w = 45, h = 55;
                 obstacles.push({
-                    x: random(60, width - 95),
-                    y: -42, w: 35, h: 42, speed: currentSpeed, type: 'cone'
+                    x: random(45, width - 45 - w),
+                    y: -h, w: w, h: h, speed: currentSpeed, type: 'cone'
                 });
             }
         }
@@ -278,9 +287,11 @@ function draw() {
 
     trainTimer++;
     if (trainTimer > trainSpawnThreshold && !train && !ramp) {
-        let trackY = -180; 
-        ramp = { x: random(80, width - 160), y: trackY + 100, w: 80, h: 80 }; 
-        train = { x: 45, y: trackY, w: width - 90, h: 75 };
+        let trackY = -220; 
+        // 🛠️ ขยายขนาดทางเหิน Ramp (100 x 100)
+        ramp = { x: random(80, width - 180), y: trackY + 110, w: 100, h: 100 }; 
+        // 🛠️ ขยายความสูงขบวนรถไฟยาว (หนา 90)
+        train = { x: 40, y: trackY, w: width - 80, h: 90 };
         trainTimer = 0;
     }
 
@@ -288,28 +299,29 @@ function draw() {
         train.y += currentSpeed; 
         
         fill(40);
-        rect(40, train.y + 15, width - 80, 35); 
+        rect(40, train.y + 20, width - 80, 45); 
         fill(100);
-        rect(40, train.y + 18, width - 80, 4); 
-        rect(40, train.y + 42, width - 80, 4); 
+        rect(40, train.y + 25, width - 80, 4); 
+        rect(40, train.y + 55, width - 80, 4); 
 
         image(trainImg, train.x, train.y, train.w, train.h);
 
-        if (playerX > train.x && playerX < train.x + train.w &&
+        if (playerX > train.x - 10 && playerX < train.x + train.w + 10 &&
             playerY > train.y && playerY < train.y + train.h) {
             if (jumpHeight < 45 && !isGhost) gameState = 3; 
         }
-        if (train.y > height + 100) train = null; 
+        if (train.y > height + 150) train = null; 
     }
 
     if (ramp) {
         ramp.y += currentSpeed;
         image(rampImg, ramp.x, ramp.y, ramp.w, ramp.h);
 
-        if (playerX > ramp.x - 15 && playerX < ramp.x + ramp.w + 15 &&
+        // ปรับสมดุลพิกัดเหินให้รับกับรถที่ใหญ่ขึ้น
+        if (playerX > ramp.x - 25 && playerX < ramp.x + ramp.w + 25 &&
             playerY > ramp.y && playerY < ramp.y + ramp.h && !isJumping) {
             isJumping = true;
-            jumpVelocity = 13; 
+            jumpVelocity = 14; 
         }
         if (ramp.y > height) ramp = null;
     }
@@ -326,8 +338,9 @@ function draw() {
             image(imgToDraw, obs.x, obs.y, obs.w, obs.h);
             
             if (jumpHeight < 25 && !isGhost) { 
-                if (playerX + playerSize/3 > obs.x && playerX - playerSize/3 < obs.x + obs.w &&
-                    playerY + playerSize/3 > obs.y && playerY - playerSize/3 < obs.y + obs.h) {
+                // ปรับระบบ Hitbox คัดกรองการชนเฉี่ยวชนสมจริงขึ้น
+                if (playerX + 20 > obs.x && playerX - 20 < obs.x + obs.w &&
+                    playerY + 35 > obs.y && playerY - 35 < obs.y + obs.h) {
                     gameState = 3;
                 }
             }
@@ -341,12 +354,12 @@ function draw() {
             pop();
 
             if (jumpHeight < 15 && !isGhost) {
-                if (playerX > obs.x && playerX < obs.x + obs.w &&
-                    playerY > obs.y && playerY < obs.y + obs.h) {
+                if (playerX + 15 > obs.x && playerX - 15 < obs.x + obs.w &&
+                    playerY + 20 > obs.y && playerY - 20 < obs.y + obs.h) {
                     if (!isSlippery) {
                         isSlippery = true;
                         slipperyTimer = 60; 
-                        floatingTexts.push({ x: playerX, y: playerY - 40, text: "SLIPPERY!", r: 245, g: 212, b: 114, size: 18, timer: 45 });
+                        floatingTexts.push({ x: playerX, y: playerY - 50, text: "SLIPPERY!", r: 245, g: 212, b: 114, size: 18, timer: 45 });
                     }
                 }
             }
@@ -354,12 +367,12 @@ function draw() {
             image(coneImg, obs.x, obs.y, obs.w, obs.h);
 
             if (jumpHeight < 25 && !isGhost) {
-                if (playerX + playerSize/3 > obs.x && playerX - playerSize/3 < obs.x + obs.w &&
-                    playerY + playerSize/3 > obs.y && playerY - playerSize/3 < obs.y + obs.h) {
+                if (playerX + 18 > obs.x && playerX - 18 < obs.x + obs.w &&
+                    playerY + 25 > obs.y && playerY - 25 < obs.y + obs.h) {
                     score = max(0, score - 50); 
                     speedPenalty = 3; 
                     penaltyTimer = 90;
-                    floatingTexts.push({ x: playerX, y: playerY - 40, text: "-50 คะแนน", r: 255, g: 50, b: 50, size: 18, timer: 45 });
+                    floatingTexts.push({ x: playerX, y: playerY - 50, text: "-50 คะแนน", r: 255, g: 50, b: 50, size: 18, timer: 45 });
                     obstacles.splice(i, 1);
                     continue;
                 }
@@ -376,17 +389,17 @@ function draw() {
             image(ghostImg, 0, 0, obs.w, obs.h);
             pop();
 
-            if (playerX + playerSize/2 > obs.x && playerX - playerSize/2 < obs.x + obs.w &&
-                playerY + playerSize/2 > obs.y && playerY - playerSize/2 < obs.y + obs.h) {
+            if (playerX + 25 > obs.x && playerX - 25 < obs.x + obs.w &&
+                playerY + 25 > obs.y && playerY - 25 < obs.y + obs.h) {
                 isGhost = true;
                 ghostTimer = 150; 
-                floatingTexts.push({ x: playerX, y: playerY - 40, text: "GHOST MODE!", r: 0, g: 255, b: 255, size: 20, timer: 60 });
+                floatingTexts.push({ x: playerX, y: playerY - 50, text: "GHOST MODE!", r: 0, g: 255, b: 255, size: 20, timer: 60 });
                 obstacles.splice(i, 1);
                 continue;
             }
         }
 
-        if (obs.y > height) {
+        if (obs.y > height + 50) {
             obstacles.splice(i, 1);
             if (obs.type !== 'ghost_item' && obs.type !== 'oil') {
                 score += 10;
@@ -416,7 +429,7 @@ function draw() {
         drawingContext.shadowColor = 'rgba(255, 255, 200, 0.5)';
         fill(255, 255, 200, darkness * 0.4);
         noStroke();
-        triangle(playerX, playerY - 15, playerX - 80, playerY - 240, playerX + 80, playerY - 240);
+        triangle(playerX, playerY - 20, playerX - 100, playerY - 260, playerX + 100, playerY - 260);
         pop();
 
         for (let obs of obstacles) {
@@ -424,7 +437,7 @@ function draw() {
                 push();
                 fill(255, 255, 200, darkness * 0.35);
                 noStroke();
-                triangle(obs.x + obs.w/2, obs.y + obs.h, obs.x - 35, obs.y + obs.h + 160, obs.x + obs.w + 35, obs.y + obs.h + 160);
+                triangle(obs.x + obs.w/2, obs.y + obs.h, obs.x - 45, obs.y + obs.h + 180, obs.x + obs.w + 45, obs.y + obs.h + 180);
                 pop();
             }
         }
@@ -453,6 +466,7 @@ function draw() {
     }
 }
 
+// 🛠️ วาดรูปรถมอเตอร์ไซค์ของผู้เล่นขนาดบิ๊กเบิ้ม (กว้าง 50 สูง 100)
 function drawPlayer(speed) {
     push();
     let currentScale = 1 + (jumpHeight * 0.005);
@@ -466,17 +480,17 @@ function drawPlayer(speed) {
         strokeWeight(3);
         drawingContext.shadowBlur = 15;
         drawingContext.shadowColor = 'rgba(0, 255, 255, 0.8)';
-        ellipse(0, 0, playerSize * 1.3, playerSize * 1.3);
+        ellipse(0, 0, playerSize * 1.4, playerSize * 1.4);
         pop();
     }
 
     if (jumpHeight > 0) {
         fill(0, 0, 0, 80);
-        ellipse(10, jumpHeight + 10, playerSize, playerSize/1.5);
+        ellipse(0, jumpHeight + 20, playerSize, playerSize/1.5);
     } else {
         if (frameCount % 3 === 0) {
             let pCol = isGhost ? "rgba(0, 255, 255, " : "rgba(200, 200, 200, ";
-            particles.push({x: playerX, y: playerY + 30, alpha: 255, colorStr: pCol});
+            particles.push({x: playerX, y: playerY + 45, alpha: 255, colorStr: pCol});
         }
     }
     
@@ -484,7 +498,9 @@ function drawPlayer(speed) {
 
     tint(255, playerAlpha);
     imageMode(CENTER);
-    image(playerImg, 0, 0, 35, 70); 
+    
+    // 💥 ขยายใหญ่สุดพลังสะใจ (50 x 100)
+    image(playerImg, 0, 0, 50, 100); 
     pop();
 
     for (let i = particles.length - 1; i >= 0; i--) {
@@ -493,7 +509,7 @@ function drawPlayer(speed) {
         p.alpha -= 8;
         noStroke();
         fill(p.colorStr + (p.alpha/255) + ")");
-        ellipse(p.x + random(-6, 6), p.y, 9, 9);
+        ellipse(p.x + random(-8, 8), p.y, 10, 10);
         if (p.alpha <= 0) particles.splice(i, 1);
     }
 }
