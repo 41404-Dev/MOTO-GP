@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Moto Finger Runner - Mega Giant Edition</title>
+    <title>Moto Finger Runner - 60FPS Ultra Smooth Edition</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
@@ -22,14 +22,15 @@
     </div>
     
     <div id="instructions">
-        ⚡ <strong>Mega Giant Edition:</strong> ไอคอนใหญ่สะใจเต็มพิกัด + ระบบควบคุมตามมือจริงไม่มีสวนทาง!
+        ⚡ <strong>60FPS Ultra Smooth Edition:</strong> เอาเงากระตุกออก + ปรับความเร็วกล้อง AI ให้ตอบสนองไวขั้นเทพ!
     </div>
 
 <script>
 let videoElement;
 let playerX = 200;
-let playerY = 480; // ขยับผู้เล่นขึ้นมานิดนึงเพื่อรองรับความยาวของรถ
-let playerSize = 65; // ปรับขนาดฐาน Hitbox ให้กว้างขึ้นตามตัวรถ
+let playerY = 480; 
+let playerSize = 65; 
+let targetX = 200; // 🛠️ เพิ่มตัวแปรเก็บพิกัดเป้าหมายจากกล้องแยกต่างหาก
 
 // ตัวแปรสำหรับเก็บรูปภาพ
 let playerImg, sedanImg, pickupImg, truckImg, oilImg, coneImg, ghostImg, trainImg, rampImg;
@@ -69,7 +70,6 @@ let spawnTimer = 0;
 let trainTimer = 0;
 let roadOffset = 0;
 
-// โหลดรูปภาพจากหน้าแรกสุด (Root Path)
 function preload() {
     playerImg = loadImage('player.png');
     sedanImg = loadImage('sedan.png');
@@ -84,6 +84,7 @@ function preload() {
 
 function setup() {
     createCanvas(400, 600);
+    frameRate(60); // 🛠️ บังคับตัวเกมให้เรนเดอร์ที่ความเร็วสูงสุด 60fps
     videoElement = document.getElementById('webcam');
     
     highScore = int(localStorage.getItem('motoHighScore')) || 0;
@@ -101,6 +102,7 @@ function setup() {
     
     hands.onResults(onHandResults);
 
+    // 🛠️ ปรับความละเอียดกล้องส่งให้ AI เหลือ 160x120 เพื่อลดการโหลดประมวลผลลง 4 เท่า!
     const camera = new Camera(videoElement, {
         onFrame: async () => {
             await hands.send({ image: videoElement });
@@ -109,23 +111,20 @@ function setup() {
                 gameState = 1;
             }
         },
-        width: 320,
-        height: 240
+        width: 160,
+        height: 120
     });
     camera.start();
 }
 
-// ระบบกล้องทิศทางเดียวกับมือจริง (Mirror Fixed)
+// 🛠️ ปรับแก้: ให้ฟังก์ชันกล้องทำหน้าที่ส่งข้อมูลเป้าหมายพอ ไม่ต้องคำนวณการเคลื่อนไหวในนี้
 function onHandResults(results) {
     if (gameState === 2 && results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
         let hand = results.multiHandLandmarks[0];
         let indexFinger = hand[8]; 
         
-        let targetX = map(indexFinger.x, 0.2, 0.8, 0, width, true);
-        playerX = lerp(playerX, targetX, 0.15);
-        
-        // ล็อคขอบเขตไม่ให้รถใหญ่เกินถนน (ขอบถนนซ้าย 40 ขวา 360, รถมอเตอร์ไซค์กว้าง 50)
-        playerX = constrain(playerX, 65, width - 65);
+        // บันทึกค่าพิกัดดิบลงตัวแปรเป้าหมาย
+        targetX = map(indexFinger.x, 0.2, 0.8, 0, width, true);
     }
 }
 
@@ -138,6 +137,7 @@ function resetGame() {
     score = 0;
     playFrames = 0; 
     playerX = width / 2;
+    targetX = width / 2;
     jumpHeight = 0;
     jumpVelocity = 0;
     isJumping = false;
@@ -181,6 +181,12 @@ function draw() {
     } else if (gameState === 3) {
         drawMessage("GAME OVER", "คะแนนของคุณ: " + score + "\nคลิกที่หน้าจอเพื่อเล่นใหม่");
         return;
+    }
+
+    // 🛠️ ย้ายการเคลื่อนไหวของรถมา Lerp ในลูป draw() การันตีความสมูทลื่นหัวแตกระดับ 60fps
+    if (gameState === 2) {
+        playerX = lerp(playerX, targetX, 0.18);
+        playerX = constrain(playerX, 65, width - 65);
     }
 
     let currentSpeed = baseSpeed + (score * 0.002) - speedPenalty;
@@ -244,7 +250,6 @@ function draw() {
             let types = ['sedan', 'pickup', 'truck'];
             let type = random(types);
             
-            // 🛠️ ขยายขนาดรถอุปสรรคให้เบิ้มจุใจ (เก๋ง/กระบะ: 58x95 | รถบรรทุก: 70x130)
             let w = type === 'truck' ? 70 : 58; 
             let h = type === 'truck' ? 130 : 95; 
             
@@ -253,14 +258,12 @@ function draw() {
                 y: -h, w: w, h: h, speed: currentSpeed * 0.8, type: type
             });
         } else if (rand < 78) {
-            // 🛠️ ขยายขนาดบ่อน้ำมันทองคำ (90 x 55)
             let w = 90, h = 55;
             obstacles.push({
                 x: random(45, width - 45 - w),
                 y: -h, w: w, h: h, speed: currentSpeed, type: 'oil'
             });
         } else if (rand < 97) {
-            // 🛠️ ขยายขนาดกรวยจราจร (45 x 55)
             let w = 45, h = 55;
             obstacles.push({
                 x: random(45, width - 45 - w),
@@ -268,7 +271,6 @@ function draw() {
             });
         } else {
             if (!isGhost) { 
-                // 🛠️ ขยายขนาดไอเทมดาวโกสท์ (55 x 55)
                 let w = 55, h = 55;
                 obstacles.push({
                     x: random(50, width - 50 - w),
@@ -288,9 +290,7 @@ function draw() {
     trainTimer++;
     if (trainTimer > trainSpawnThreshold && !train && !ramp) {
         let trackY = -220; 
-        // 🛠️ ขยายขนาดทางเหิน Ramp (100 x 100)
         ramp = { x: random(80, width - 180), y: trackY + 110, w: 100, h: 100 }; 
-        // 🛠️ ขยายความสูงขบวนรถไฟยาว (หนา 90)
         train = { x: 40, y: trackY, w: width - 80, h: 90 };
         trainTimer = 0;
     }
@@ -317,7 +317,6 @@ function draw() {
         ramp.y += currentSpeed;
         image(rampImg, ramp.x, ramp.y, ramp.w, ramp.h);
 
-        // ปรับสมดุลพิกัดเหินให้รับกับรถที่ใหญ่ขึ้น
         if (playerX > ramp.x - 25 && playerX < ramp.x + ramp.w + 25 &&
             playerY > ramp.y && playerY < ramp.y + ramp.h && !isJumping) {
             isJumping = true;
@@ -338,20 +337,21 @@ function draw() {
             image(imgToDraw, obs.x, obs.y, obs.w, obs.h);
             
             if (jumpHeight < 25 && !isGhost) { 
-                // ปรับระบบ Hitbox คัดกรองการชนเฉี่ยวชนสมจริงขึ้น
                 if (playerX + 20 > obs.x && playerX - 20 < obs.x + obs.w &&
                     playerY + 35 > obs.y && playerY - 35 < obs.y + obs.h) {
                     gameState = 3;
                 }
             }
         } else if (obs.type === 'oil') {
-            push();
+            // 🛠️ ถอดระบบ shadowBlur ออก เปลี่ยนมาใช้การวาดเอฟเฟกต์สีเหลืองทองทับจางๆ แทน
             if (darkness > 0) {
-                drawingContext.shadowBlur = 15;
-                drawingContext.shadowColor = 'rgba(245, 212, 114, 0.9)'; 
+                push();
+                noStroke();
+                fill(245, 212, 114, 50);
+                rect(obs.x - 5, obs.y - 5, obs.w + 10, obs.h + 10, 10);
+                pop();
             }
             image(oilImg, obs.x, obs.y, obs.w, obs.h);
-            pop();
 
             if (jumpHeight < 15 && !isGhost) {
                 if (playerX + 15 > obs.x && playerX - 15 < obs.x + obs.w &&
@@ -381,9 +381,11 @@ function draw() {
             push();
             translate(obs.x + obs.w/2, obs.y + obs.h/2);
             rotate(frameCount * 0.05);
+            // 🛠️ ถอด shadowBlur ของไอเทมดาวโกสท์ออก แทนที่ด้วยวงกลมเรืองแสงเบาๆ
             if (darkness > 0) {
-                drawingContext.shadowBlur = 15;
-                drawingContext.shadowColor = 'rgba(0, 255, 255, 0.8)';
+                noStroke();
+                fill(0, 255, 255, 60);
+                ellipse(0, 0, obs.w + 15, obs.h + 15);
             }
             imageMode(CENTER);
             image(ghostImg, 0, 0, obs.w, obs.h);
@@ -424,12 +426,13 @@ function draw() {
         fill(0, 0, 0, darkness);
         rect(0, 0, width, height);
 
+        // 🛠️ ถอด shadowBlur แสงไฟหน้ารถออก วาดเป็นรูปสามเหลี่ยมซ้อนกันเพื่อสร้างมิติความสมูท
         push();
-        drawingContext.shadowBlur = 20;
-        drawingContext.shadowColor = 'rgba(255, 255, 200, 0.5)';
-        fill(255, 255, 200, darkness * 0.4);
+        fill(255, 255, 200, darkness * 0.25);
         noStroke();
         triangle(playerX, playerY - 20, playerX - 100, playerY - 260, playerX + 100, playerY - 260);
+        fill(255, 255, 200, darkness * 0.15);
+        triangle(playerX, playerY - 20, playerX - 60, playerY - 180, playerX + 60, playerY - 180);
         pop();
 
         for (let obs of obstacles) {
@@ -466,21 +469,23 @@ function draw() {
     }
 }
 
-// 🛠️ วาดรูปรถมอเตอร์ไซค์ของผู้เล่นขนาดบิ๊กเบิ้ม (กว้าง 50 สูง 100)
 function drawPlayer(speed) {
     push();
     let currentScale = 1 + (jumpHeight * 0.005);
     translate(playerX, playerY);
     scale(currentScale);
     
+    // 🛠️ ถอด shadowBlur วงแหวนโกสท์ออก ใช้วิธีวาดวงกลมเรืองแสงซ้อนกันแทน
     if (isGhost) {
         push();
         noFill();
-        stroke(0, 255, 255, 150 + sin(frameCount * 0.2) * 80);
-        strokeWeight(3);
-        drawingContext.shadowBlur = 15;
-        drawingContext.shadowColor = 'rgba(0, 255, 255, 0.8)';
-        ellipse(0, 0, playerSize * 1.4, playerSize * 1.4);
+        let alphaWave = 150 + sin(frameCount * 0.2) * 80;
+        stroke(0, 255, 255, alphaWave * 0.6);
+        strokeWeight(4);
+        ellipse(0, 0, playerSize * 1.3, playerSize * 1.3);
+        stroke(0, 255, 255, alphaWave * 0.3);
+        strokeWeight(8);
+        ellipse(0, 0, playerSize * 1.5, playerSize * 1.5);
         pop();
     }
 
@@ -498,8 +503,6 @@ function drawPlayer(speed) {
 
     tint(255, playerAlpha);
     imageMode(CENTER);
-    
-    // 💥 ขยายใหญ่สุดพลังสะใจ (50 x 100)
     image(playerImg, 0, 0, 50, 100); 
     pop();
 
