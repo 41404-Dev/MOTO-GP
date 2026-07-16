@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Moto Finger Runner - Big Icons Edition</title>
+    <title>Moto Finger Runner - Mirror Fixed Edition</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
@@ -22,14 +22,14 @@
     </div>
     
     <div id="instructions">
-        ⚡ <strong>Big Icons Edition:</strong> ปรับขนาดรูปภาพใหญ่ขึ้นเต็มตา | โหลดไฟล์จากหน้าแรกสุดตาม GitHub เรียบร้อย!
+        ⚡ <strong>Mirror Fixed Edition:</strong> แก้ไขปัญหากล้องกลับด้านแล้ว! เลื่อนซ้ายไปซ้าย ขวาไปขวาตามมือจริง
     </div>
 
 <script>
 let videoElement;
 let playerX = 200;
 let playerY = 500;
-let playerSize = 50; // 🛠️ ปรับขนาดฐานผู้เล่นให้รองรับรูปภาพที่ใหญ่ขึ้น
+let playerSize = 50; 
 
 // ตัวแปรสำหรับเก็บรูปภาพ
 let playerImg, sedanImg, pickupImg, truckImg, oilImg, coneImg, ghostImg, trainImg, rampImg;
@@ -69,7 +69,7 @@ let spawnTimer = 0;
 let trainTimer = 0;
 let roadOffset = 0;
 
-// 🛠️ โหลดรูปภาพจากหน้าแรกสุดตรงๆ (ตัด images/ ออกตามโครงสร้าง GitHub ของมึง)
+// โหลดรูปภาพจากหน้าแรกสุดตรงๆ ตามโครงสร้าง GitHub ของมึง
 function preload() {
     playerImg = loadImage('player.png');
     sedanImg = loadImage('sedan.png');
@@ -115,12 +115,14 @@ function setup() {
     camera.start();
 }
 
+// 🛠️ จุดที่แก้ไข: สลับค่าการ Map จากกล้อง ป้องกันปัญหามือสวนทางกับรถ
 function onHandResults(results) {
     if (gameState === 2 && results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
         let hand = results.multiHandLandmarks[0];
         let indexFinger = hand[8]; 
         
-        let targetX = map(indexFinger.x, 0.8, 0.2, 0, width, true);
+        // สลับช่วงรับค่าจาก (0.8, 0.2) เป็น (0.2, 0.8) เพื่อแก้ระบบเลี้ยวสวนทาง
+        let targetX = map(indexFinger.x, 0.2, 0.8, 0, width, true);
         playerX = lerp(playerX, targetX, 0.15);
         playerX = constrain(playerX, 65, width - 65);
     }
@@ -241,7 +243,6 @@ function draw() {
             let types = ['sedan', 'pickup', 'truck'];
             let type = random(types);
             
-            // 🛠️ ขยายขนาดรถอุปสรรคให้ใหญ่ขึ้นหลบมันส์ขึ้น
             let w = type === 'truck' ? 55 : 45; 
             let h = type === 'truck' ? 100 : 75; 
             
@@ -250,20 +251,17 @@ function draw() {
                 y: -h, w: w, h: h, speed: currentSpeed * 0.8, type: type
             });
         } else if (rand < 78) {
-            // 🛠️ ขยายขนาดบ่อน้ำมันทองคำ (75 x 45)
             obstacles.push({
                 x: random(60, width - 130),
                 y: -45, w: 75, h: 45, speed: currentSpeed, type: 'oil'
             });
         } else if (rand < 97) {
-            // 🛠️ ขยายขนาดกรวยจราจร (35 x 42)
             obstacles.push({
                 x: random(60, width - 95),
                 y: -42, w: 35, h: 42, speed: currentSpeed, type: 'cone'
             });
         } else {
             if (!isGhost) { 
-                // 🛠️ ขยายขนาดไอเทมดาวโกสท์ (42 x 42)
                 obstacles.push({
                     x: random(80, width - 110),
                     y: -42, w: 42, h: 42, speed: currentSpeed, type: 'ghost_item'
@@ -281,9 +279,7 @@ function draw() {
     trainTimer++;
     if (trainTimer > trainSpawnThreshold && !train && !ramp) {
         let trackY = -180; 
-        // 🛠️ ขยายขนาดทางเหิน Ramp (80 x 80)
         ramp = { x: random(80, width - 160), y: trackY + 100, w: 80, h: 80 }; 
-        // 🛠️ ขยายความสูงรถไฟให้หนาขึ้น (หนา 75)
         train = { x: 45, y: trackY, w: width - 90, h: 75 };
         trainTimer = 0;
     }
@@ -313,7 +309,7 @@ function draw() {
         if (playerX > ramp.x - 15 && playerX < ramp.x + ramp.w + 15 &&
             playerY > ramp.y && playerY < ramp.y + ramp.h && !isJumping) {
             isJumping = true;
-            jumpVelocity = 13; // เพิ่มแรงส่งกระโดดเล็กน้อยรับขนาดที่ใหญ่ขึ้น
+            jumpVelocity = 13; 
         }
         if (ramp.y > height) ramp = null;
     }
@@ -457,7 +453,6 @@ function draw() {
     }
 }
 
-// 🛠️ วาดรูปรถมอเตอร์ไซค์ของผู้เล่น (ขยายใหญ่ขึ้นเป็น 35 x 70)
 function drawPlayer(speed) {
     push();
     let currentScale = 1 + (jumpHeight * 0.005);
@@ -489,8 +484,6 @@ function drawPlayer(speed) {
 
     tint(255, playerAlpha);
     imageMode(CENTER);
-    
-    // 🛠️ ขยายขนาดภาพรถมอเตอร์ไซค์ขึ้นเต็มพิกัด (กว้าง 35 สูง 70)
     image(playerImg, 0, 0, 35, 70); 
     pop();
 
