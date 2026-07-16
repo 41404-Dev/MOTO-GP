@@ -4,37 +4,101 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MOTO Finger</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@400;600;800&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
     <style>
-        body { margin: 0; padding: 0; background: #111; display: flex; justify-content: center; align-items: center; height: 100vh; color: white; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; overflow: hidden; }
-        canvas { border: 4px solid #444; border-radius: 10px; box-shadow: 0 0 30px rgba(0, 255, 255, 0.2); }
-        /* 🛠️ เอา transform: scaleX(-1) ออกเพื่อให้กล้องไม่กลับด้านกระจก */
-        #video-container { position: absolute; top: 20px; left: 20px; opacity: 0.8; pointer-events: none; border-radius: 10px; overflow: hidden; border: 2px solid #0ff; box-shadow: 0 0 10px #0ff; }
-        video { width: 160px; height: 120px; display: block; }
-        #instructions { position: absolute; bottom: 20px; text-align: center; color: #aaa; font-size: 14px; max-width: 600px; line-height: 1.5; }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0; padding: 0;
+            background: radial-gradient(circle at 50% 20%, #1a2230 0%, #0a0d12 70%);
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            min-height: 100vh; color: #fff;
+            font-family: 'Kanit', 'Segoe UI', Tahoma, sans-serif;
+            overflow: hidden;
+        }
+        #game-wrap { position: relative; }
+        canvas {
+            display: block;
+            border: 4px solid #263042;
+            border-radius: 12px;
+            box-shadow: 0 0 40px rgba(0, 229, 255, 0.25), 0 0 0 1px rgba(255,183,3,0.15) inset;
+        }
+        #video-container {
+            position: absolute; top: 14px; left: 14px;
+            opacity: 0.92; pointer-events: none; border-radius: 10px;
+            overflow: hidden; border: 2px solid #0ff; box-shadow: 0 0 12px rgba(0,255,255,0.6);
+            background: #000;
+        }
+        video { width: 140px; height: 105px; display: block; }
+        #cam-label {
+            position: absolute; bottom: 0; left: 0; right: 0;
+            font-size: 10px; letter-spacing: 0.5px; text-align: center;
+            background: rgba(0,0,0,0.55); padding: 2px 0; color: #9be9ff;
+            display: flex; align-items: center; justify-content: center; gap: 5px;
+        }
+        #cam-dot {
+            width: 7px; height: 7px; border-radius: 50%; background: #666;
+            box-shadow: 0 0 4px #666; transition: background 0.15s, box-shadow 0.15s;
+        }
+        #cam-dot.active { background: #33ff77; box-shadow: 0 0 6px #33ff77; }
+
+        #hud-buttons {
+            position: absolute; top: 14px; right: 14px;
+            display: flex; gap: 8px; z-index: 5;
+        }
+        .icon-btn {
+            width: 38px; height: 38px; border-radius: 50%;
+            background: rgba(10,14,20,0.65); border: 1px solid rgba(0,229,255,0.4);
+            color: #e6f9ff; font-size: 16px; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            backdrop-filter: blur(3px); transition: transform 0.12s, border-color 0.12s;
+        }
+        .icon-btn:hover { transform: scale(1.08); border-color: #ffb703; }
+        .icon-btn:active { transform: scale(0.92); }
+
+        #instructions {
+            margin-top: 16px; text-align: center; color: #9aa7ba; font-size: 13.5px;
+            max-width: 620px; line-height: 1.6; padding: 0 12px;
+        }
+        #instructions b { color: #ffd166; }
+        #instructions .hazard {
+            display: inline-block; width: 100%; height: 4px; margin: 8px 0;
+            background: repeating-linear-gradient(45deg, #ffb703 0 10px, #1a1a1a 10px 20px);
+            border-radius: 2px; opacity: 0.6;
+        }
     </style>
 </head>
 <body>
 
-    <div id="video-container">
-        <video id="webcam" autoplay playsinline></video>
+    <div id="game-wrap">
+        <div id="video-container">
+            <video id="webcam" autoplay playsinline muted></video>
+            <div id="cam-label"><span id="cam-dot"></span>HAND CAM</div>
+        </div>
+        <div id="hud-buttons">
+            <button class="icon-btn" id="muteBtn" title="เปิด/ปิดเสียง">🔊</button>
+            <button class="icon-btn" id="pauseBtn" title="หยุดชั่วคราว">⏸</button>
+        </div>
     </div>
-    
+
     <div id="instructions">
-        🎮 <strong>วิธีเล่น MOTO Finger:</strong> ชู **"นิ้วชี้"** ขึ้นมาแล้วเลื่อนซ้าย-ขวาหน้ากล้องเพื่อควบคุมรถมอเตอร์ไซค์ <br>
-        ⚡ หลบรถคันอื่นและสิ่งกีดขวางบนถนน | ขับขึ้น **แผ่นทางเหิน (Ramp)** สีเหลืองดำเพื่อกระโดดข้ามรถไฟยาว!
+        🏍️ <b>วิธีเล่น MOTO Finger:</b> ชู <b>"นิ้วชี้"</b> ขึ้นมาแล้วเลื่อนซ้าย-ขวาหน้ากล้องเพื่อควบคุมรถมอเตอร์ไซค์
+        <div class="hazard"></div>
+        ⚡ หลบรถคันอื่นและสิ่งกีดขวางบนถนน &nbsp;|&nbsp; ขับขึ้น <b>แผ่นทางเหิน (Ramp)</b> เพื่อกระโดดข้ามรถไฟ &nbsp;|&nbsp; เก็บ <b>👻 Ghost Item</b> เพื่อพุ่งทะลุทุกอย่างชั่วคราว
     </div>
 
 <script>
 let videoElement;
 let playerX = 200;
-let playerY = 480; 
-let playerSize = 65; 
-let targetX = 200; 
+let playerY = 480;
+let playerSize = 65;
+let targetX = 200;
 
-// ตัวแปรสำหรับเก็บรูปภาพ
+// รูปภาพ
 let playerImg, sedanImg, pickupImg, truckImg, oilImg, coneImg, ghostImg, trainImg, rampImg;
 
 // ระบบกระโดด
@@ -47,10 +111,19 @@ let isJumping = false;
 let score = 0;
 let highScore = 0;
 let showNewRecord = false;
+let newRecordThisRun = false;
 let baseSpeed = 5;
-let gameState = 0;
+let gameState = 0; // 0 loading, 1 menu, 2 playing, 3 game over
 let cameraReady = false;
-let playFrames = 0; 
+let cameraError = false;
+let playFrames = 0;
+let handDetected = false;
+let handLostTimer = 0;
+let isPaused = false;
+
+// คอมโบ
+let combo = 1.0;
+let comboStreak = 0;
 
 // อุปสรรคและไอเทม
 let obstacles = [];
@@ -66,11 +139,21 @@ let isSlippery = false;
 let slipperyTimer = 0;
 let speedPenalty = 0;
 let penaltyTimer = 0;
-let darkness = 0; 
+let darkness = 0;
+
+// สั่นจอ
+let shakeAmount = 0;
 
 let spawnTimer = 0;
 let trainTimer = 0;
 let roadOffset = 0;
+
+// ===== เสียง =====
+let audioCtx = null;
+let masterGain = null;
+let soundEnabled = true;
+let engineOsc = null, engineOsc2 = null, engineGain = null;
+let noiseBuffer = null;
 
 function preload() {
     playerImg = loadImage('player.png');
@@ -85,47 +168,196 @@ function preload() {
 }
 
 function setup() {
-    createCanvas(400, 600);
-    frameRate(60); 
+    let cnv = createCanvas(400, 600);
+    cnv.parent('game-wrap');
+    frameRate(60);
     videoElement = document.getElementById('webcam');
-    
+
     highScore = int(localStorage.getItem('motoHighScore')) || 0;
+    soundEnabled = localStorage.getItem('motoSound') !== 'off';
+    updateMuteIcon();
+
+    document.getElementById('muteBtn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        toggleSound();
+    });
+    document.getElementById('pauseBtn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        togglePause();
+    });
+    document.addEventListener('keydown', (e) => {
+        if (e.code === 'KeyP' || e.code === 'Escape') togglePause();
+    });
 
     const hands = new Hands({
         locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
     });
-    
+
     hands.setOptions({
         maxNumHands: 1,
         modelComplexity: 1,
         minDetectionConfidence: 0.5,
         minTrackingConfidence: 0.5
     });
-    
+
     hands.onResults(onHandResults);
 
-    const camera = new Camera(videoElement, {
-        onFrame: async () => {
-            await hands.send({ image: videoElement });
-            if (!cameraReady) {
-                cameraReady = true;
-                gameState = 1;
-            }
-        },
-        width: 160,
-        height: 120
-    });
-    camera.start();
+    try {
+        const camera = new Camera(videoElement, {
+            onFrame: async () => {
+                try {
+                    await hands.send({ image: videoElement });
+                } catch (err) { /* ignore transient frame errors */ }
+                if (!cameraReady) {
+                    cameraReady = true;
+                    gameState = 1;
+                }
+            },
+            width: 160,
+            height: 120
+        });
+        camera.start().catch(() => { cameraError = true; });
+    } catch (err) {
+        cameraError = true;
+    }
+
+    // ถ้ากล้องไม่พร้อมภายใน 8 วินาที ให้ถือว่ามีปัญหาการอนุญาตกล้อง
+    setTimeout(() => {
+        if (!cameraReady) cameraError = true;
+    }, 8000);
+}
+
+// ===== เสียง: ตั้งค่าเริ่มต้น =====
+function initAudio() {
+    if (audioCtx) return;
+    const AC = window.AudioContext || window.webkitAudioContext;
+    audioCtx = new AC();
+    masterGain = audioCtx.createGain();
+    masterGain.gain.value = soundEnabled ? 1 : 0;
+    masterGain.connect(audioCtx.destination);
+
+    // เตรียม noise buffer สำหรับเสียงชน/ลื่นไถล
+    const bufferSize = audioCtx.sampleRate * 0.4;
+    noiseBuffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+    const data = noiseBuffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+
+    // เครื่องยนต์ (loop ต่อเนื่อง)
+    engineOsc = audioCtx.createOscillator();
+    engineOsc.type = 'sawtooth';
+    engineOsc2 = audioCtx.createOscillator();
+    engineOsc2.type = 'square';
+    engineOsc2.detune.value = 12;
+    engineGain = audioCtx.createGain();
+    engineGain.gain.value = 0;
+    const engineFilter = audioCtx.createBiquadFilter();
+    engineFilter.type = 'lowpass';
+    engineFilter.frequency.value = 800;
+    engineOsc.connect(engineFilter);
+    engineOsc2.connect(engineFilter);
+    engineFilter.connect(engineGain);
+    engineGain.connect(masterGain);
+    engineOsc.frequency.value = 60;
+    engineOsc2.frequency.value = 60;
+    engineOsc.start();
+    engineOsc2.start();
+}
+
+function resumeAudio() {
+    if (!audioCtx) initAudio();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+}
+
+function toggleSound() {
+    soundEnabled = !soundEnabled;
+    localStorage.setItem('motoSound', soundEnabled ? 'on' : 'off');
+    if (masterGain && audioCtx) masterGain.gain.setTargetAtTime(soundEnabled ? 1 : 0, audioCtx.currentTime, 0.05);
+    updateMuteIcon();
+}
+
+function updateMuteIcon() {
+    document.getElementById('muteBtn').textContent = soundEnabled ? '🔊' : '🔇';
+}
+
+function togglePause() {
+    if (gameState !== 2 && gameState !== 4) return;
+    if (gameState === 2) {
+        gameState = 4; // paused
+        if (engineGain && audioCtx) engineGain.gain.setTargetAtTime(0, audioCtx.currentTime, 0.08);
+    } else if (gameState === 4) {
+        gameState = 2;
+    }
+    document.getElementById('pauseBtn').textContent = gameState === 4 ? '▶' : '⏸';
+}
+
+function playTone(freq, duration, type, startGain, glideTo) {
+    if (!audioCtx || !soundEnabled) return;
+    const osc = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    osc.type = type || 'sine';
+    osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+    if (glideTo) osc.frequency.exponentialRampToValueAtTime(glideTo, audioCtx.currentTime + duration);
+    g.gain.setValueAtTime(startGain || 0.2, audioCtx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+    osc.connect(g);
+    g.connect(masterGain);
+    osc.start();
+    osc.stop(audioCtx.currentTime + duration);
+}
+
+function playNoiseBurst(duration, filterFreq, gainVal) {
+    if (!audioCtx || !soundEnabled || !noiseBuffer) return;
+    const src = audioCtx.createBufferSource();
+    src.buffer = noiseBuffer;
+    const filter = audioCtx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = filterFreq || 1200;
+    const g = audioCtx.createGain();
+    g.gain.setValueAtTime(gainVal || 0.3, audioCtx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+    src.connect(filter);
+    filter.connect(g);
+    g.connect(masterGain);
+    src.start();
+    src.stop(audioCtx.currentTime + duration);
+}
+
+function playCrash() {
+    playNoiseBurst(0.5, 900, 0.5);
+    playTone(140, 0.4, 'sawtooth', 0.3, 40);
+}
+function playCoin() {
+    playTone(880, 0.09, 'square', 0.15);
+    setTimeout(() => playTone(1320, 0.14, 'square', 0.15), 70);
+}
+function playSlip() {
+    playNoiseBurst(0.35, 500, 0.22);
+}
+function playConeHit() {
+    playTone(260, 0.25, 'sawtooth', 0.25, 90);
+}
+function playJump() {
+    playTone(320, 0.22, 'sine', 0.2, 920);
+}
+function playClick() {
+    playTone(600, 0.06, 'square', 0.12);
 }
 
 function onHandResults(results) {
-    if (gameState === 2 && results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-        let hand = results.multiHandLandmarks[0];
-        let indexFinger = hand[8]; 
-        
-        // ล็อคพิกัดการคำนวณให้สัมพันธ์กับการขยับมือจริง (ขวาไปขวา ซ้ายไปซ้าย) แม่นยำ 100%
-        targetX = map(indexFinger.x, 0.2, 0.8, width, 0, true);
+    if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+        handDetected = true;
+        handLostTimer = 20;
+        if (gameState === 2) {
+            let hand = results.multiHandLandmarks[0];
+            let indexFinger = hand[8];
+            targetX = map(indexFinger.x, 0.2, 0.8, width, 0, true);
+        }
+    } else {
+        if (handLostTimer > 0) handLostTimer--;
+        if (handLostTimer <= 0) handDetected = false;
     }
+    const dot = document.getElementById('cam-dot');
+    if (dot) dot.classList.toggle('active', handDetected);
 }
 
 function resetGame() {
@@ -135,7 +367,7 @@ function resetGame() {
     particles = [];
     floatingTexts = [];
     score = 0;
-    playFrames = 0; 
+    playFrames = 0;
     playerX = width / 2;
     targetX = width / 2;
     jumpHeight = 0;
@@ -143,44 +375,95 @@ function resetGame() {
     isJumping = false;
     spawnTimer = 0;
     trainTimer = 0;
-    
+    roadOffset = 0;
+    darkness = 0;
+    combo = 1.0;
+    comboStreak = 0;
+    shakeAmount = 0;
+
     showNewRecord = false;
+    newRecordThisRun = false;
     isGhost = false;
     ghostTimer = 0;
     isSlippery = false;
     slipperyTimer = 0;
     speedPenalty = 0;
     penaltyTimer = 0;
-    
+
     gameState = 2;
+    document.getElementById('pauseBtn').textContent = '⏸';
 }
 
-function mousePressed() {
-    if (gameState === 1 || gameState === 3) {
-        resetGame();
+function triggerGameOver() {
+    if (gameState === 3) return;
+    gameState = 3;
+    shakeAmount = 18;
+    playCrash();
+    if (engineGain) engineGain.gain.setTargetAtTime(0, audioCtx.currentTime, 0.15);
+    if (score > highScore) {
+        highScore = score;
+        newRecordThisRun = true;
+        localStorage.setItem('motoHighScore', highScore);
     }
 }
 
+function mousePressed() {
+    resumeAudio();
+    if (gameState === 1 || gameState === 3) {
+        playClick();
+        resetGame();
+    }
+}
+function touchStarted() {
+    mousePressed();
+    return false;
+}
+
 function draw() {
+    // สั่นจอ
+    push();
+    if (shakeAmount > 0.3) {
+        translate(random(-shakeAmount, shakeAmount), random(-shakeAmount, shakeAmount));
+        shakeAmount *= 0.9;
+    } else {
+        shakeAmount = 0;
+    }
+
     background(30, 150, 50);
-    
+
     fill(50);
     noStroke();
     rect(40, 0, width - 80, height);
-    
+
     fill(200);
     rect(40, 0, 5, height);
     rect(width - 45, 0, 5, height);
 
     if (gameState === 0) {
-        drawMessage("กำลังเชื่อมต่อกล้อง...", "กรุณารอสักครู่");
+        drawMessage("MOTO Finger", cameraError ? "⚠️ ไม่พบสัญญาณกล้อง ตรวจสอบการอนุญาตกล้อง (HTTPS) แล้วรีเฟรชหน้า" : "📷 กำลังเชื่อมต่อกล้อง...");
+        pop();
         return;
     } else if (gameState === 1) {
-        // 🛠️ เปลี่ยนชื่อเกมในหน้าแรก
-        drawMessage("MOTO Finger", "คลิกที่หน้าจอเพื่อเริ่มเกม!");
+        drawMessage("MOTO Finger", "แตะหน้าจอเพื่อเริ่มเกม!");
+        pop();
         return;
     } else if (gameState === 3) {
-        drawMessage("GAME OVER", "คะแนนของคุณ: " + score + "\nคลิกที่หน้าจอเพื่อเล่นใหม่");
+        drawMessage("GAME OVER", "คะแนนของคุณ: " + score + "\nแตะหน้าจอเพื่อเล่นใหม่");
+        pop();
+        return;
+    } else if (gameState === 4) {
+        // paused: วาดฉากค้างไว้ด้านหลัง ไม่อัปเดตฟิสิกส์
+        drawFrozenScene();
+        fill(0, 0, 0, 170);
+        rect(0, 0, width, height);
+        fill(255);
+        textAlign(CENTER);
+        textSize(28);
+        text("⏸ หยุดชั่วคราว", width / 2, height / 2);
+        textSize(14);
+        fill(200);
+        text("แตะปุ่ม ▶ เพื่อเล่นต่อ", width / 2, height / 2 + 30);
+        pop();
         return;
     }
 
@@ -190,7 +473,16 @@ function draw() {
     }
 
     let currentSpeed = baseSpeed + (score * 0.002) - speedPenalty;
-    if (currentSpeed < 3) currentSpeed = 3; 
+    if (currentSpeed < 3) currentSpeed = 3;
+
+    // อัปเดตเสียงเครื่องยนต์ตามความเร็ว
+    if (audioCtx && engineOsc) {
+        let t = audioCtx.currentTime;
+        let f = map(currentSpeed, 3, 12, 55, 150, true);
+        engineOsc.frequency.setTargetAtTime(f, t, 0.08);
+        engineOsc2.frequency.setTargetAtTime(f * 1.5, t, 0.08);
+        engineGain.gain.setTargetAtTime(soundEnabled ? 0.09 : 0, t, 0.2);
+    }
 
     roadOffset += currentSpeed;
     if (roadOffset > 40) roadOffset = 0;
@@ -199,19 +491,11 @@ function draw() {
         rect(width / 2 - 2, i + roadOffset, 4, 20);
     }
 
-    if (score > highScore) {
-        if (highScore > 0 && !showNewRecord) {
-            showNewRecord = true;
-        }
-        highScore = score;
-        localStorage.setItem('motoHighScore', highScore);
-    }
-
     if (isSlippery) {
         slipperyTimer--;
-        playerX += sin(frameCount * 0.8) * 7; 
+        playerX += sin(frameCount * 0.8) * 7;
         if (frameCount % 3 === 0) {
-            particles.push({ x: playerX, y: playerY + 30, alpha: 200, colorStr: "rgba(238, 198, 91, " }); 
+            particles.push({ x: playerX, y: playerY + 30, alpha: 200, colorStr: "rgba(238, 198, 91, " });
         }
         if (slipperyTimer <= 0) isSlippery = false;
     }
@@ -229,7 +513,7 @@ function draw() {
     if (isJumping) {
         jumpHeight += jumpVelocity;
         jumpVelocity -= gravity;
-        
+
         if (jumpHeight <= 0) {
             jumpHeight = 0;
             isJumping = false;
@@ -237,80 +521,80 @@ function draw() {
     }
 
     let trainSpawnThreshold = 400 - (currentSpeed * 3);
-    let timeBeforeTrainToClear = 130; 
+    let timeBeforeTrainToClear = 130;
     let isCloseToTrain = (trainTimer > trainSpawnThreshold - timeBeforeTrainToClear);
 
     spawnTimer++;
     let spawnDelay = 75 - (currentSpeed * 1.5);
     if (spawnDelay < 35) spawnDelay = 35;
 
-    if (spawnTimer > spawnDelay && !train && !ramp && !isCloseToTrain) { 
+    if (spawnTimer > spawnDelay && !train && !ramp && !isCloseToTrain) {
         let rand = random(100);
+        let candidate = null;
+
         if (rand < 60) {
             let types = ['sedan', 'pickup', 'truck'];
             let type = random(types);
-            
-            let w = type === 'truck' ? 70 : 58; 
-            let h = type === 'truck' ? 130 : 95; 
-            
-            obstacles.push({
-                x: random(45, width - 45 - w),
-                y: -h, w: w, h: h, speed: currentSpeed * 0.8, type: type
-            });
+            let w = type === 'truck' ? 70 : 58;
+            let h = type === 'truck' ? 130 : 95;
+            let spd = type === 'truck' ? currentSpeed * 0.72 : (type === 'pickup' ? currentSpeed * 0.88 : currentSpeed * 0.8);
+            candidate = { x: random(45, width - 45 - w), y: -h, w: w, h: h, speed: spd, type: type };
         } else if (rand < 78) {
             let w = 90, h = 55;
-            obstacles.push({
-                x: random(45, width - 45 - w),
-                y: -h, w: w, h: h, speed: currentSpeed, type: 'oil'
-            });
+            candidate = { x: random(45, width - 45 - w), y: -h, w: w, h: h, speed: currentSpeed, type: 'oil' };
         } else if (rand < 97) {
             let w = 45, h = 55;
-            obstacles.push({
-                x: random(45, width - 45 - w),
-                y: -h, w: w, h: h, speed: currentSpeed, type: 'cone'
-            });
+            candidate = { x: random(45, width - 45 - w), y: -h, w: w, h: h, speed: currentSpeed, type: 'cone' };
         } else {
-            if (!isGhost) { 
+            if (!isGhost) {
                 let w = 55, h = 55;
-                obstacles.push({
-                    x: random(50, width - 50 - w),
-                    y: -h, w: w, h: h, speed: currentSpeed, type: 'ghost_item'
-                });
+                candidate = { x: random(50, width - 50 - w), y: -h, w: w, h: h, speed: currentSpeed, type: 'ghost_item' };
             } else {
                 let w = 45, h = 55;
-                obstacles.push({
-                    x: random(45, width - 45 - w),
-                    y: -h, w: w, h: h, speed: currentSpeed, type: 'cone'
-                });
+                candidate = { x: random(45, width - 45 - w), y: -h, w: w, h: h, speed: currentSpeed, type: 'cone' };
             }
         }
-        spawnTimer = 0;
+
+        // กันไม่ให้เกิดซ้อนกับสิ่งกีดขวางที่เพิ่งวางล่าสุด (เผื่อทางให้ผู้เล่นหลบได้เสมอ)
+        let blocked = false;
+        for (let obs of obstacles) {
+            if (obs.y < 90 && !(candidate.x + candidate.w < obs.x - 18 || candidate.x > obs.x + obs.w + 18)) {
+                blocked = true;
+                break;
+            }
+        }
+        if (!blocked) {
+            obstacles.push(candidate);
+            spawnTimer = 0;
+        } else {
+            spawnTimer = spawnDelay - 8; // ลองใหม่เร็ว ๆ นี้
+        }
     }
 
     trainTimer++;
     if (trainTimer > trainSpawnThreshold && !train && !ramp) {
-        let trackY = -220; 
-        ramp = { x: random(80, width - 180), y: trackY + 110, w: 100, h: 100 }; 
+        let trackY = -220;
+        ramp = { x: random(80, width - 180), y: trackY + 110, w: 100, h: 100 };
         train = { x: 40, y: trackY, w: width - 80, h: 90 };
         trainTimer = 0;
     }
 
     if (train) {
-        train.y += currentSpeed; 
-        
+        train.y += currentSpeed;
+
         fill(40);
-        rect(40, train.y + 20, width - 80, 45); 
+        rect(40, train.y + 20, width - 80, 45);
         fill(100);
-        rect(40, train.y + 25, width - 80, 4); 
-        rect(40, train.y + 55, width - 80, 4); 
+        rect(40, train.y + 25, width - 80, 4);
+        rect(40, train.y + 55, width - 80, 4);
 
         image(trainImg, train.x, train.y, train.w, train.h);
 
         if (playerX > train.x - 10 && playerX < train.x + train.w + 10 &&
             playerY > train.y && playerY < train.y + train.h) {
-            if (jumpHeight < 45 && !isGhost) gameState = 3; 
+            if (jumpHeight < 45 && !isGhost) triggerGameOver();
         }
-        if (train.y > height + 150) train = null; 
+        if (train.y > height + 150) train = null;
     }
 
     if (ramp) {
@@ -320,26 +604,27 @@ function draw() {
         if (playerX > ramp.x - 25 && playerX < ramp.x + ramp.w + 25 &&
             playerY > ramp.y && playerY < ramp.y + ramp.h && !isJumping) {
             isJumping = true;
-            jumpVelocity = 14; 
+            jumpVelocity = 14;
+            playJump();
         }
         if (ramp.y > height) ramp = null;
     }
 
     for (let i = obstacles.length - 1; i >= 0; i--) {
         let obs = obstacles[i];
-        obs.y += currentSpeed;
-        
+        obs.y += obs.speed;
+
         if (obs.type === 'sedan' || obs.type === 'pickup' || obs.type === 'truck') {
             let imgToDraw = sedanImg;
-            if(obs.type === 'pickup') imgToDraw = pickupImg;
-            if(obs.type === 'truck') imgToDraw = truckImg;
-            
+            if (obs.type === 'pickup') imgToDraw = pickupImg;
+            if (obs.type === 'truck') imgToDraw = truckImg;
+
             image(imgToDraw, obs.x, obs.y, obs.w, obs.h);
-            
-            if (jumpHeight < 25 && !isGhost) { 
+
+            if (jumpHeight < 25 && !isGhost) {
                 if (playerX + 20 > obs.x && playerX - 20 < obs.x + obs.w &&
                     playerY + 35 > obs.y && playerY - 35 < obs.y + obs.h) {
-                    gameState = 3;
+                    triggerGameOver();
                 }
             }
         } else if (obs.type === 'oil') {
@@ -357,7 +642,10 @@ function draw() {
                     playerY + 20 > obs.y && playerY - 20 < obs.y + obs.h) {
                     if (!isSlippery) {
                         isSlippery = true;
-                        slipperyTimer = 60; 
+                        slipperyTimer = 60;
+                        combo = 1.0;
+                        comboStreak = 0;
+                        playSlip();
                         floatingTexts.push({ x: playerX, y: playerY - 50, text: "SLIPPERY!", r: 245, g: 212, b: 114, size: 18, timer: 45 });
                     }
                 }
@@ -368,9 +656,13 @@ function draw() {
             if (jumpHeight < 25 && !isGhost) {
                 if (playerX + 18 > obs.x && playerX - 18 < obs.x + obs.w &&
                     playerY + 25 > obs.y && playerY - 25 < obs.y + obs.h) {
-                    score = max(0, score - 50); 
-                    speedPenalty = 3; 
+                    score = max(0, score - 50);
+                    speedPenalty = 3;
                     penaltyTimer = 90;
+                    combo = 1.0;
+                    comboStreak = 0;
+                    shakeAmount = 8;
+                    playConeHit();
                     floatingTexts.push({ x: playerX, y: playerY - 50, text: "-50 คะแนน", r: 255, g: 50, b: 50, size: 18, timer: 45 });
                     obstacles.splice(i, 1);
                     continue;
@@ -378,7 +670,7 @@ function draw() {
             }
         } else if (obs.type === 'ghost_item') {
             push();
-            translate(obs.x + obs.w/2, obs.y + obs.h/2);
+            translate(obs.x + obs.w / 2, obs.y + obs.h / 2);
             rotate(frameCount * 0.05);
             if (darkness > 0) {
                 noStroke();
@@ -392,7 +684,8 @@ function draw() {
             if (playerX + 25 > obs.x && playerX - 25 < obs.x + obs.w &&
                 playerY + 25 > obs.y && playerY - 25 < obs.y + obs.h) {
                 isGhost = true;
-                ghostTimer = 150; 
+                ghostTimer = 150;
+                playCoin();
                 floatingTexts.push({ x: playerX, y: playerY - 50, text: "GHOST MODE!", r: 0, g: 255, b: 255, size: 20, timer: 60 });
                 obstacles.splice(i, 1);
                 continue;
@@ -402,22 +695,27 @@ function draw() {
         if (obs.y > height + 50) {
             obstacles.splice(i, 1);
             if (obs.type !== 'ghost_item' && obs.type !== 'oil') {
-                score += 10;
+                comboStreak++;
+                if (comboStreak > 0 && comboStreak % 5 === 0 && combo < 3.0) {
+                    combo = min(3.0, combo + 0.2);
+                    floatingTexts.push({ x: playerX, y: playerY - 65, text: "COMBO x" + combo.toFixed(1) + "!", r: 255, g: 183, b: 3, size: 16, timer: 40 });
+                }
+                score += round(10 * combo);
             }
         }
     }
 
     drawPlayer(currentSpeed);
 
-    let cycle = playFrames % 3000; 
+    let cycle = playFrames % 3000;
     if (cycle < 1200) {
-        darkness = 0; 
+        darkness = 0;
     } else if (cycle >= 1200 && cycle < 1600) {
-        darkness = map(cycle, 1200, 1600, 0, 110); 
+        darkness = map(cycle, 1200, 1600, 0, 110);
     } else if (cycle >= 1600 && cycle < 2400) {
-        darkness = 110; 
+        darkness = 110;
     } else {
-        darkness = map(cycle, 2400, 3000, 110, 0); 
+        darkness = map(cycle, 2400, 3000, 110, 0);
     }
 
     if (darkness > 0) {
@@ -437,7 +735,7 @@ function draw() {
                 push();
                 fill(255, 255, 200, darkness * 0.35);
                 noStroke();
-                triangle(obs.x + obs.w/2, obs.y + obs.h, obs.x - 45, obs.y + obs.h + 180, obs.x + obs.w + 45, obs.y + obs.h + 180);
+                triangle(obs.x + obs.w / 2, obs.y + obs.h, obs.x - 45, obs.y + obs.h + 180, obs.x + obs.w + 45, obs.y + obs.h + 180);
                 pop();
             }
         }
@@ -445,17 +743,39 @@ function draw() {
 
     drawFloatingTexts();
 
+    // HUD
     fill(0, 0, 0, 180);
     rect(0, 0, width, 40);
     fill(255);
     textSize(18);
     textAlign(LEFT);
+    textFont('Kanit');
     text("SCORE: " + score, 15, 26);
-    
+
+    if (combo > 1.0) {
+        fill(255, 183, 3);
+        textSize(14);
+        textAlign(LEFT);
+        text("x" + combo.toFixed(1), 130, 26);
+    }
+
+    if (!handDetected && gameState === 2) {
+        fill(255, 90, 90, 180 + sin(frameCount * 0.2) * 60);
+        textSize(12);
+        textAlign(CENTER);
+        text("🖐️ ยกนิ้วชี้ให้กล้องเห็น", width / 2, 26);
+    }
+
     if (showNewRecord && frameCount % 30 < 15) {
         fill(255, 215, 0);
         textAlign(RIGHT);
+        textSize(16);
         text("🏆 NEW RECORD!", width - 15, 26);
+    } else if (gameState === 2) {
+        fill(180);
+        textAlign(RIGHT);
+        textSize(12);
+        text("BEST: " + highScore, width - 15, 26);
     }
 
     if (gameState === 2) {
@@ -463,7 +783,38 @@ function draw() {
         if (frameCount % 3 === 0) {
             score++;
         }
+        if (score >= highScore && highScore > 0) showNewRecord = true;
     }
+
+    pop();
+}
+
+function drawFrozenScene() {
+    // วาดฉากปัจจุบันแบบนิ่ง ๆ ตอน pause (ไม่อัปเดตตัวแปร)
+    fill(255);
+    for (let i = -40; i < height; i += 40) {
+        rect(width / 2 - 2, i + roadOffset, 4, 20);
+    }
+    if (train) image(trainImg, train.x, train.y, train.w, train.h);
+    if (ramp) image(rampImg, ramp.x, ramp.y, ramp.w, ramp.h);
+    for (let obs of obstacles) {
+        let img = sedanImg;
+        if (obs.type === 'pickup') img = pickupImg;
+        else if (obs.type === 'truck') img = truckImg;
+        else if (obs.type === 'oil') img = oilImg;
+        else if (obs.type === 'cone') img = coneImg;
+        else if (obs.type === 'ghost_item') img = ghostImg;
+        image(img, obs.x, obs.y, obs.w, obs.h);
+    }
+    drawPlayerStatic();
+}
+
+function drawPlayerStatic() {
+    push();
+    translate(playerX, playerY);
+    imageMode(CENTER);
+    image(playerImg, 0, 0, 50, 100);
+    pop();
 }
 
 function drawPlayer(speed) {
@@ -471,7 +822,7 @@ function drawPlayer(speed) {
     let currentScale = 1 + (jumpHeight * 0.005);
     translate(playerX, playerY);
     scale(currentScale);
-    
+
     if (isGhost) {
         push();
         noFill();
@@ -487,19 +838,19 @@ function drawPlayer(speed) {
 
     if (jumpHeight > 0) {
         fill(0, 0, 0, 80);
-        ellipse(0, jumpHeight + 20, playerSize, playerSize/1.5);
+        ellipse(0, jumpHeight + 20, playerSize, playerSize / 1.5);
     } else {
         if (frameCount % 3 === 0) {
             let pCol = isGhost ? "rgba(0, 255, 255, " : "rgba(200, 200, 200, ";
-            particles.push({x: playerX, y: playerY + 45, alpha: 255, colorStr: pCol});
+            particles.push({ x: playerX, y: playerY + 45, alpha: 255, colorStr: pCol });
         }
     }
-    
-    let playerAlpha = isGhost ? 110 : 255; 
+
+    let playerAlpha = isGhost ? 110 : 255;
 
     tint(255, playerAlpha);
     imageMode(CENTER);
-    image(playerImg, 0, 0, 50, 100); 
+    image(playerImg, 0, 0, 50, 100);
     pop();
 
     for (let i = particles.length - 1; i >= 0; i--) {
@@ -507,7 +858,7 @@ function drawPlayer(speed) {
         p.y += speed * 0.5;
         p.alpha -= 8;
         noStroke();
-        fill(p.colorStr + (p.alpha/255) + ")");
+        fill(p.colorStr + (p.alpha / 255) + ")");
         ellipse(p.x + random(-8, 8), p.y, 10, 10);
         if (p.alpha <= 0) particles.splice(i, 1);
     }
@@ -528,22 +879,58 @@ function drawFloatingTexts() {
     }
 }
 
-// 🛠️ ฟังก์ชันแสดงข้อความหน้าเมนูและ Game Over
 function drawMessage(title, subtitle) {
-    fill(0, 0, 0, 200);
+    fill(0, 0, 0, 205);
     rect(0, 0, width, height);
-    fill(0, 255, 255);
-    textSize(32);
+
+    // เส้นแถบฮาซาร์ดบนล่าง ให้ฟีลรถแข่ง
+    push();
+    noStroke();
+    for (let y of [height * 0.28, height * 0.72]) {
+        for (let x = -20; x < width + 20; x += 26) {
+            fill(((x / 13) % 2 === 0) ? color(255, 183, 3, 60) : color(20, 20, 20, 0));
+            rect(x, y, 13, 6);
+        }
+    }
+    pop();
+
+    fill(0, 229, 255);
+    textFont('Kanit');
+    textStyle(BOLD);
+    textSize(36);
     textAlign(CENTER);
-    text(title, width/2, height/2 - 40);
+    // ตัวหนังสือเรืองแสงแบบง่าย ๆ
+    for (let o of [{x:0,y:0,a:255}]) {
+        text(title, width / 2, height / 2 - 40);
+    }
+    textStyle(NORMAL);
+
     fill(255);
-    textSize(16);
-    text(subtitle, width/2, height/2 + 5);
+    textSize(15);
+    text(subtitle, width / 2, height / 2 + 8);
+
+    if (gameState === 1 || gameState === 3) {
+        fill(255, 255, 255, 150 + sin(frameCount * 0.12) * 100);
+        textSize(13);
+        text("🏍️  แตะที่หน้าจอ  🏍️", width / 2, height / 2 + 90);
+    }
 
     if (gameState === 3) {
         fill(255, 215, 0);
         textSize(20);
-        text("🏆 HIGH SCORE: " + highScore, width/2, height/2 + 65);
+        text("🏆 HIGH SCORE: " + highScore, width / 2, height / 2 + 45);
+        if (newRecordThisRun) {
+            fill(255, 100, 100, 180 + sin(frameCount * 0.3) * 70);
+            textSize(14);
+            text("✨ สถิติใหม่! ✨", width / 2, height / 2 + 68);
+        }
+        let seconds = floor(playFrames / 60);
+        let mm = floor(seconds / 60);
+        let ss = seconds % 60;
+        let timeStr = (mm > 0 ? mm + " นาที " : "") + ss + " วินาที";
+        fill(180);
+        textSize(12);
+        text("ระยะเวลาที่ขับได้: " + timeStr, width / 2, height / 2 + 118);
     }
 }
 </script>
